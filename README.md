@@ -2,7 +2,7 @@
 #### *Library of distributed convex optimization algorithms implemented in Python using MPI.
 
 ## Introduction
-Welcome to **_maopy_**, the multi_agent_optimization package. The module contains several distributed optimization algorithms and distributed averaging (consensus) algorithms:
+Welcome to **_maopy_**, the multi_agent_optimization moudle. The module contains several distributed optimization algorithms and distributed averaging (consensus) algorithms:
 * Subgradient Push (optimization)
 * Extra Push (optimization)
 * Push DIGing (optimization)
@@ -10,7 +10,7 @@ Welcome to **_maopy_**, the multi_agent_optimization package. The module contain
 * Asynchronous Subgradient Push (optimization)
 
 ## Examples
-Examples (demos) of each algorithm are provided in the main method at the bottom of each respective class. To run any of the demos, depending on your MPI distribution, execute one of the following command line instructions from the directory containing the **_maopy_** package,
+Examples (demos) of each algorithm are provided in the main method at the bottom of each respective class. To run any of the demos, depending on your MPI distribution, execute one of the following command line instructions from the directory containing the **_maopy_** module,
 ```bash
 mpirun -np $(num_processes) python -m maopy.$(algorithm_name)
 ```
