@@ -217,10 +217,6 @@ class PushSumGossipAverager(object):
                                   'rcvd_flag': Boolean)
         """
 
-        if UID == 0:
-            from time import sleep
-            sleep(0.5)
-
         if (self.synch is True) and (self.terminate_by_time is True):
             warnings.warn("Use of synchronous gossip w/ time term. cond. will result in deadlocks.")
 
