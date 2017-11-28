@@ -16,12 +16,19 @@ mpirun -np $(num_processes) python -m maopy.$(algorithm_name)
 ```
 or
 ```bash
-mipexec -n $(num_processes_variable) python -m maopy.$(algorithm_name)
+mipexec -n $(num_processes) python -m maopy.$(algorithm_name)
 ```
 For example, to run the push-sum consensus demo in the *push_sum_gossip_averaging* file over a 5-agent network (with architecture specified in the demo), one would type
 ```bash
 mipexec -n 5 python -m maopy.push_sum_gossip_averaging
 ```
 Notice that we **did not include the file suffix** ('.py') in the command, since the path is already defined relative to the module.
+
+## Setup
+To get started, install the message passing library mpi4py,
+```bash
+conda install -c anaconda mpi4py
+```
+Now just clone this repo and you're good to go!
 
 # Enjoy!
