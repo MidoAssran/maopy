@@ -16,11 +16,11 @@ mpirun -np $(num_processes) python -m maopy.$(algorithm_name)
 ```
 or
 ```bash
-mipexec -n $(num_processes) python -m maopy.$(algorithm_name)
+mpiexec -n $(num_processes) python -m maopy.$(algorithm_name)
 ```
 For example, to run the push-sum consensus demo in the *push_sum_gossip_averaging* file over a 5-agent network (with architecture specified in the demo), one would type
 ```bash
-mipexec -n 5 python -m maopy.push_sum_gossip_averaging
+mpiexec -n 5 python -m maopy.push_sum_gossip_averaging
 ```
 Notice that we **did not include the file suffix** ('.py') in the command, since the path is already defined relative to the module.
 
