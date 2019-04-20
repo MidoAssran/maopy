@@ -27,10 +27,8 @@ def main(args):
                                               printer=printer)
 
     # Load least squares data
-    objective, gradient, arg_start, _ = load_least_squares(args.data_file_name,
-                                                           args.rank,
-                                                           args.size,
-                                                           printer=printer)
+    objective, gradient, arg_start, arg_min = load_least_squares(
+        args.data_file_name, args.rank, args.size, printer=printer)
 
     # Initialize multi-agent optimizer
     if args.alg == 'gp':
@@ -46,7 +44,7 @@ def main(args):
         synch=(not args.asynch),
         peers=peers,
         step_size=args.lr,
-        terminate_by_time=False,
+        terminate_by_time=args.asynch,
         termination_condition=args.num_steps,
         log=True,
         out_degree=out_degree,
@@ -59,13 +57,13 @@ def main(args):
     l_argmin_est = loggers['argmin_est'].history
     l_ps_w = loggers['ps_w'].history
 
-    # Load least squares data
-    objective, _, _, arg_min = load_least_squares(args.data_file_name, 0, 1)
+    # Load global objective
+    # objective, _, _, arg_min = load_least_squares(args.data_file_name, 0, 1)
     true_obj = objective(arg_min)
     start_obj = objective(arg_start)
     final_obj = objective(loggers['argmin_est'].gossip_value)
     printer.stdout(
-        '(min: %.4f)(final: %.4f)(start: %.4f)' % (
+        '(truth: %.4E)(final: %.4E)(start: %.4E)' % (
             true_obj, final_obj, start_obj)
     )
     np.savez_compressed(args.fpath,
