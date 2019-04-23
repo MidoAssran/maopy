@@ -16,7 +16,7 @@ def get_args():
     parser.add_argument(
         '--data-file-name',
         type=str,
-        default='qp_data.npz',
+        default='qp_data_sg.npz',
         help='name of dataset to load from ./datasets/')
     parser.add_argument(
         '--graph-file-name',

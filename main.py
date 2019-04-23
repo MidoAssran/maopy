@@ -23,8 +23,11 @@ def main(args):
     printer = Printer(args.rank, args.size, args.comm)
 
     # Load peers
-    peers, in_degree, out_degree = load_peers(args.graph_file_name, args.rank,
-                                              printer=printer)
+    # peers, in_degree, out_degree = load_peers(args.graph_file_name, args.rank,
+    #                                           printer)
+    peers = [(args.rank + 1) % args.size]
+    in_degree, out_degree = 1, 1
+    printer.stdout('p/o/i: %s/%s/%s' % (peers, out_degree, in_degree))
 
     # Load least squares data
     objective, gradient, arg_start, arg_min = load_least_squares(
@@ -49,7 +52,6 @@ def main(args):
         log=True,
         out_degree=out_degree,
         in_degree=in_degree,
-        constant_step_size=(not args.use_lr_decay),
         all_reduce=False)
 
     # Log and save results
@@ -58,7 +60,7 @@ def main(args):
     l_ps_w = loggers['ps_w'].history
 
     # Load global objective
-    # objective, _, _, arg_min = load_least_squares(args.data_file_name, 0, 1)
+    objective, _, _, arg_min = load_least_squares(args.data_file_name, 0, 1)
     true_obj = objective(arg_min)
     start_obj = objective(arg_start)
     final_obj = objective(loggers['argmin_est'].gossip_value)

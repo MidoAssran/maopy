@@ -84,6 +84,10 @@ class PushSumGossipAverager(object):
             self.out_degree = min(out_degree, len(self.peers))
 
         self.in_degree = in_degree
+        self.info_list = []
+        self.ps_n_buff = 0.
+        self.ps_w_buff = 0.
+        self.num_rcv_buff = 0
 
         self.all_reduce = all_reduce
 
@@ -103,8 +107,8 @@ class PushSumGossipAverager(object):
         column = {}
         lo_p = 1.0 / (self.out_degree + 1.0)
         out_p = [1.0 / (self.out_degree + 1.0) for _ in range(self.out_degree)]
-        # lo_p = 0.8
-        # out_p = [0.2 / self.out_degree for _ in range(self.out_degree)]
+        # lo_p = 0.9
+        # out_p = [0.1 / self.out_degree for _ in range(self.out_degree)]
         column['lo_p'] = lo_p
         column['out_p'] = out_p
         return column
@@ -120,7 +124,8 @@ class PushSumGossipAverager(object):
         :rtype: void
         """
         for i, peer_uid in enumerate(peers):
-            push_message = np.append(consensus_column[i]*ps_n, consensus_column[i]*ps_w)
+            push_message = np.append(consensus_column[i]*ps_n,
+                                     consensus_column[i]*ps_w)
             _ = COMM.Ibsend(push_message, dest=peer_uid)
 
     def recieve_asynchronously(self):
@@ -129,29 +134,39 @@ class PushSumGossipAverager(object):
 
         :rtype: dict('num_messages': int, 'ps_w': float, 'ps_n': np.array[float] or float)
         """
-        itr = 0
-        ps_w = 0
-        ps_n = 0
-        info = MPI.Status()
 
-        while COMM.Iprobe(source=MPI.ANY_SOURCE, status=info):
-
-            itr += 1
-            # Receive message
+        info = [MPI.Status()]
+        while COMM.Iprobe(source=MPI.ANY_SOURCE, status=info[0]):
+            self.info_list.append(info[0])
+            info[0] = MPI.Status()
             data = np.empty(self.average.size + 1, dtype=np.float64)
-            COMM.Recv(data, info.source)
-
-            ps_w += data[-1]
-
+            COMM.Recv(data, info[0].source)
+            self.ps_w_buff += data[-1]
             # This is some logic to allow handling of both gossiped constant values and vectors
             try:
-                ps_n += data[:-1].reshape(self.average.shape)
+                self.ps_n_buff += data[:-1].reshape(self.average.shape)
             except AttributeError:
-                ps_n += data[0]
+                self.ps_n_buff += data[0]
+            self.num_rcv_buff += 1
 
-            info = MPI.Status()
+        # Count num. in-peers
+        in_peers = {}
+        for info in self.info_list:
+            s = info.source
+            in_peers[s] = 1
+        num_in_peers = 0
+        for _ in in_peers:
+            num_in_peers += 1
+
+        ps_n, ps_w, itr = 0, 0, 0
+        # Return messages once all are received
+        if num_in_peers == self.in_degree:
+            self.info_list.clear()
+            ps_n, ps_w, itr = self.ps_n_buff, self.ps_w_buff, self.num_rcv_buff
+            self.ps_n_buff, self.ps_w_buff, self.num_rcv_buff = 0., 0., 0
 
         return {'num_messages': itr, 'ps_w': ps_w, 'ps_n': ps_n}
+
 
     def receive_synchronously(self):
         """
@@ -263,6 +278,7 @@ class PushSumGossipAverager(object):
 
         # Goes high when node receives at least one message during any iteration (for external use)
         ext_rcvd_flag = False
+        ext_rcvd = 0
         # Goes high when a gossip should be performed (when it has changed)
         rcvd_flag = True
 
@@ -305,6 +321,7 @@ class PushSumGossipAverager(object):
             # If received at least one message, set external rcvd flag to high
             if rcvd['num_messages'] > 0:
                 ext_rcvd_flag = True
+                ext_rcvd += rcvd['num_messages']
                 rcvd_flag = True
             else:
                 rcvd_flag = False
@@ -323,10 +340,11 @@ class PushSumGossipAverager(object):
         self.average = avg
 
         if log is True:
-            return {"avg": l_avg, "ps_w": l_ps_w, "ps_n": l_ps_n}
+            return {"avg": l_avg, "ps_w": l_ps_w, "ps_n": l_ps_n,
+                    "rcvd": ext_rcvd}
         else:
-            return {"avg": avg, "ps_w": ps_w,
-                    "ps_n": ps_n, "rcvd_flag": ext_rcvd_flag}
+            return {"avg": avg, "ps_w": ps_w, "ps_n": ps_n,
+                    "rcvd": ext_rcvd, "rcvd_flag": ext_rcvd_flag}
 
 
 if __name__ == "__main__":

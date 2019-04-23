@@ -19,7 +19,8 @@ CONFIG = {
     'save-fpath': './graphs/',
     'graph-type': 'erdos-renyi',
     'graphs': [
-        {'num-nodes': n, 'avg-degree': max(1, n // 4), 'num-trials': n}
+        {'num-nodes': n, 'avg-degree': max(1, n // 4),
+         'num-trials': 10}
         for n in [2, 4, 8, 16, 32, 64, 128]
     ]
 }
@@ -91,14 +92,10 @@ def score_graph(mixing_matrix):
     """ Compute second largest eig-val. of doubly stochastic mixing matrix. """
 
     arr_lambda = np.linalg.eigvals(mixing_matrix)
-    arr_lambda = np.sort(arr_lambda)    # sort in increasing order
-    for i in range(len(arr_lambda)-1, -1, -1):
-        if arr_lambda[i] < 1:
-            return arr_lambda[i]
-
-    # If all the eigenvalues are equal to 1 (which should never happend)
-    print("Warning: invalid mixing matrix. Smallest:", arr_lambda[0])
-    return arr_lambda[0]
+    for i, l in enumerate(arr_lambda):
+        arr_lambda[i] = abs(l)
+    arr_lambda = np.sort(arr_lambda)  # sort in increasing order
+    return arr_lambda[-2]
 
 
 def bfs(adjacency, num_nodes):

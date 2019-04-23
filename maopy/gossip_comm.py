@@ -14,7 +14,6 @@ class GossipComm(object):
     name = MPI.Get_processor_name()
 
     # Attach buffer
-    # BUFF_SISE = 32064000 * (1 + MPI.BSEND_OVERHEAD)
     BUFF_SISE = 32064000 * (1 + MPI.BSEND_OVERHEAD)
     buff = empty(BUFF_SISE, dtype='b')
     MPI.Attach_buffer(buff)
