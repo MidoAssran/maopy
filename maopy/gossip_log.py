@@ -29,9 +29,9 @@ class GossipLog(object):
         self.end_itr = None
         self.gossip_value = None
 
-    def log(self, value, itr):
+    def log(self, value, itr, time_offset=0.):
         """ Log the variable with an iteration and time stamp. """
-        tnow = time.time() - self.start_time
+        tnow = time.time() - self.start_time + time_offset
         value = np.copy(value)
         self.history[itr] = (tnow, value)
 

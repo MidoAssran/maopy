@@ -23,10 +23,11 @@ def main(args):
     printer = Printer(args.rank, args.size, args.comm)
 
     # Load peers
-    # peers, in_degree, out_degree = load_peers(args.graph_file_name, args.rank,
+    # peers, in_degree, out_degree = load_peers(args.graph_file_name,
+    #                                           args.rank,
     #                                           printer)
     peers = [(args.rank + 1) % args.size]
-    in_degree, out_degree = 1, 1
+    in_degree, out_degree = len(peers), len(peers)
     printer.stdout('p/o/i: %s/%s/%s' % (peers, out_degree, in_degree))
 
     # Load least squares data

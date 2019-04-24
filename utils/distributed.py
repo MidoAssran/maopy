@@ -71,7 +71,8 @@ def load_qp_data(data_name, rank=0, size=1, printer=None):
 def load_least_squares(data_name, rank=0, size=1, printer=None):
 
     a_m, b_v, arg_start, arg_min = load_qp_data(data_name, rank, size, printer)
-    objective = lambda x: 0.5 * (np.linalg.norm(a_m.dot(x) - b_v))**2
-    gradient = lambda x: a_m.T.dot(a_m.dot(x) - b_v)
+    batch_size = a_m.shape[0]
+    objective = lambda x: 0.5 * (np.linalg.norm(a_m.dot(x) - b_v))**2 / batch_size
+    gradient = lambda x: a_m.T.dot(a_m.dot(x) - b_v) / batch_size
 
     return (objective, gradient, arg_start, arg_min)

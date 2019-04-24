@@ -8,6 +8,7 @@ srun_template = '''#!/bin/bash
 #SBATCH --error=/checkpoint/%u/async_maopy_playground/{job_tag}.err
 #SBATCH --nodes={size}
 #SBATCH --cpus-per-task=1
+#SBATCH --mem-per-cpu=5000
 #SBATCH --gres=gpu:0
 #SBATCH --time={rtime}
 #SBATCH --partition=dev
@@ -18,7 +19,7 @@ module load openmpi
 source deactivate
 source activate /private/home/massran/.conda/envs/agp
 
-mpirun --report-bindings --oversubscribe --bind-to hwthread \\
+mpirun --report-bindings --bind-to core \\
     --mca btl_base_warn_component_unused 0 \\
     --mca btl_openib_warn_default_gid_prefix 0 \\
     python -u main.py  \\
@@ -28,17 +29,18 @@ mpirun --report-bindings --oversubscribe --bind-to hwthread \\
     --log-dir '/async_maopy_playground/qp/n{size}/{tag}/' '''
 
 # Sys.-Run Config
-world_size_list = [2, 4, 8, 16, 32, 64, 128]
-ref_lr = 0.0001
+rtime = '00:20:00'
+world_size_list = [2, 4, 8, 16, 32, 64, 128, 256]
+ref_lr = 100.
 alg_list = {
     'gp': {
         'alg': 'gp',
-        'steps': 100,
+        'steps': 500,
         'asynch': False
     },
     'agp': {
         'alg': 'gp',
-        'steps': 10,
+        'steps': 200,
         'asynch': True
     },
     'pd': {
@@ -48,10 +50,9 @@ alg_list = {
     },
     'ep': {
         'alg': 'ep',
-        'steps': 100,
+        'steps': 500,
         'asynch': False
     }
-
 }
 
 
@@ -59,17 +60,18 @@ def create_jobs():
     tag_template = '{tag}-nodes{size}'
     for tag in alg_list:
         asynch = alg_list[tag]['asynch']
-        steps = alg_list[tag]['steps']
         alg = alg_list[tag]['alg']
         for size in world_size_list:
-            lr = ref_lr * size
+            steps = alg_list[tag]['steps']
+            # lr = ref_lr * size
+            lr = ref_lr
             f_tag = tag_template.format(tag=tag, size=size)
             print(f_tag)
             job_script = srun_template.format(
-                job_tag=f_tag, size=size, rtime='00:20:00',
+                job_tag=f_tag, size=size, rtime=rtime,
                 alg=alg, lr=lr, steps=steps, tag=tag)
             if asynch:
-                job_script += ' --asynch'
+                job_script += '--asynch'
             fname = 'submit_' + f_tag + '.sh'
             with open(fname, 'w') as f:
                 f.write(job_script)

@@ -21,7 +21,8 @@ NAME = GossipComm.name
 
 # Default constants
 DEFAULT_LEARNING_RATE = 0.1  # Time in seconds
-TAU_PROC = 10
+TAU_PROC = 1000
+TAU_MSG = 10000
 
 
 class PushSumSubgradientDescent(PushSumOptimizer):
@@ -139,23 +140,21 @@ class PushSumSubgradientDescent(PushSumOptimizer):
 
         # Start optimization at the same time
         COMM.Barrier()
-
+        print('%s: starting optimization...' % UID)
         start_time = time.time()
-
         np.random.seed(UID)
         staleness = 0
+        tau = 1
         num_sent = 0
         num_rcvd = 0
-
         barrier_req = COMM.Ibarrier()
+        barrier_time = 0.
 
         # Optimization loop
         while condition:
 
-            itr += 1
-            if self.synch or (itr % TAU_PROC == 0):
-                barrier_req.wait()
-                barrier_req = COMM.Ibarrier()
+            if self.synch:
+                COMM.Barrier()
 
             # -- START Subgradient-Push update -- #
 
@@ -163,6 +162,7 @@ class PushSumSubgradientDescent(PushSumOptimizer):
             just_probe = staleness > 0
             ps_result = psga.gossip(gossip_value=ps_n, ps_weight=ps_w,
                                     just_probe=just_probe)
+            print('%s: jp(%s) %s' % (UID, just_probe, ps_w))
             if not just_probe:
                 num_sent += psga.out_degree
             num_rcvd += ps_result['rcvd']
@@ -170,11 +170,38 @@ class PushSumSubgradientDescent(PushSumOptimizer):
             argmin_est = ps_result['avg']
             ps_n = ps_result['ps_n']
             ps_w = ps_result['ps_w']
+            print('%s: jp(%s) rcvd(%s) %s' % (UID, just_probe,
+                                              ps_result['rcvd'], ps_w))
+
+            # Bound the relative update-rates
+            if barrier_req.test()[0]:
+                tau = 1
+                barrier_req = COMM.Ibarrier()
+            else:
+                tau += 1
+            if (tau >= TAU_PROC):
+                tau = 1
+                print('%s: too far ahead... waiting' % UID)
+                break_loop = False
+                timeout = time.time()
+                while not barrier_req.test()[0]:
+                    barrier_time = time.time() - timeout
+                    if (barrier_time) > 30.:
+                        break_loop = True
+                        break
+                if break_loop:
+                    print('%s: barrier timeout... quiting' % UID)
+                    break
+
             # Gradient step
-            ps_n = self._gradient_descent_step(ps_n=ps_n,
-                                               argmin_est=argmin_est,
-                                               itr=itr,
-                                               start_time=start_time)
+            if (tau - 1) + staleness <= TAU_MSG:
+                itr += 1
+                print('%s: another itr (%s)' % (UID, itr))
+                ps_n = self._gradient_descent_step(ps_n=ps_n,
+                                                   argmin_est=argmin_est,
+                                                   itr=itr,
+                                                   start_time=start_time)
+
             # -- END Subgradient-Push update -- #
 
             # Log the varaibles
@@ -188,29 +215,33 @@ class PushSumSubgradientDescent(PushSumOptimizer):
             else:
                 condition = time.time() < end_time
 
-        # Fetch any lingering message
-        barrier_req.wait()
-        print('%s: sent (%s), received (%s)\n\tFetching lingering messages...'
-              % (UID, num_sent, num_rcvd))
-        timeout = time.time()
-        while (time.time() - timeout) <= 5.:
-            ps_result = psga.gossip(gossip_value=ps_n, ps_weight=ps_w,
-                                    just_probe=True)
-            argmin_est = ps_result['avg']
-            ps_n = ps_result['ps_n']
-            ps_w = ps_result['ps_w']
-            num_rcvd += ps_result['rcvd']
-            time.sleep(0.5)
-            print('%s: jp(%s) rcvd(%s) %s' % (UID, True,
-                                              ps_result['rcvd'], ps_w))
-        print('%s: sent(%s), received(%s)\t itr(%s), %s'
-              % (UID, num_sent, num_rcvd, itr, ps_w))
-        # -- END Subgradient-Push update -- #
+        COMM.Barrier()
+        if not self.synch:
+            # Fetch any lingering message
+            print('%s: sent (%s), received (%s)\n\tFetching lingering msgs...'
+                  % (UID, num_sent, num_rcvd))
+            timeout = time.time()
+            while (time.time() - timeout) <= 5.:
+                ps_result = psga.gossip(gossip_value=ps_n, ps_weight=ps_w,
+                                        just_probe=True)
+                argmin_est = ps_result['avg']
+                ps_n = ps_result['ps_n']
+                ps_w = ps_result['ps_w']
+                num_rcvd += ps_result['rcvd']
+                time.sleep(0.5)
+            barrier_time += (time.time() - timeout)
+            # Log the varaibles
+            if log:
+                itr += 1
+                l_argmin_est.log(argmin_est, itr,
+                                 time_offset=(-barrier_time))
+                l_ps_w.log(ps_w, itr, time_offset=(-barrier_time))
 
-        # Log the varaibles
-        if log:
-            l_argmin_est.log(argmin_est, itr)
-            l_ps_w.log(ps_w, itr)
+
+        print('%s: sent(%s), received(%s)\t itr(%s) time(%.5f), %s'
+              % (UID, num_sent, num_rcvd, itr,
+                 time.time() - (start_time + barrier_time),
+                 ps_w))
 
         self.argmin_est = argmin_est
 

@@ -1,4 +1,5 @@
 import os
+import sys
 
 command = 'mpirun --mca btl_base_warn_component_unused 0 \
     --report-bindings --bind-to hwthread \
@@ -9,21 +10,31 @@ command = 'mpirun --mca btl_base_warn_component_unused 0 \
     --log-dir /async_maopy_playground/qp/n{world_size}/{tag}/'
 
 world_size_list = [2, 4, 8, 16, 32]
-asynch = True
-# steps = 100
-steps = 10
-lr = 0.0001
-alg = 'gp'
+world_size_list = [4, 8]
+asynch = False
+lr = 100.0
+tags = {
+    'gp': {
+        'alg': 'gp',
+        'steps': 100,
+        'identifiers': ''
+    },
+    'agp': {
+        'alg': 'gp',
+        'steps': 100,
+        'identifiers': ' --asynch'
+    }
+}
 
 
 def main():
     for world_size in world_size_list:
-        tag = 'a' + alg if asynch else alg
+        tag = str(sys.argv[1])
+        alg = tags[tag]['alg']
+        steps = tags[tag]['steps']
         f_command = command.format(world_size=world_size, alg=alg,
-                                   lr=lr * world_size,
-                                   steps=steps, tag=tag)
-        if asynch:
-            f_command += ' --asynch'
+                                   lr=lr, steps=steps, tag=tag)
+        f_command += tags[tag]['identifiers']
         os.system(f_command)
 
 

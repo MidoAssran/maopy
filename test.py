@@ -8,15 +8,23 @@ def main():
     size = comm.Get_size()
 
     import time
-    time.sleep(5)
 
     print('(%s) rank %s/%s reporting for duty' % (name, rank, size))
-    if rank == 0:
-            data = {'a': 7, 'b': 3.14}
-            comm.send(data, dest=1, tag=11)
-    elif rank == 1:
-            data = comm.recv(source=0, tag=11)
-    print(rank, data)
+    tau = 1
+    req = comm.Ibarrier()
+    for i in range(10):
+        if rank == 1:
+            time.sleep(3)
+        else:
+            time.sleep(1)
+        if req.test()[0]:
+            tau = 1
+            req = comm.Ibarrier()
+        else:
+            tau += 1
+        print('(%s) %s' % (rank, tau))
+
+    print('(%s) done' % rank)
 
 
 if __name__ == '__main__':

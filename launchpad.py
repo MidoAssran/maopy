@@ -6,7 +6,7 @@ if __name__ == '__main__':
     tag_list = [
         'agp', 'gp', 'pd', 'ep'
     ]
-    world_size_list = [2, 4, 8, 16, 32, 64, 128]
+    world_size_list = [2, 4, 8, 16, 32, 64, 128, 256]
     for size in world_size_list:
         for tag in tag_list:
             f_fpath = fpath.format(tag=tag, num_nodes=size)
