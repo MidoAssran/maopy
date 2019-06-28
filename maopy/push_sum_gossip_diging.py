@@ -118,6 +118,9 @@ class PushDIGing(PushSumOptimizer):
         # Optimization loop
         while condition:
 
+            # if UID == 0:
+            #     time.sleep(.1)
+
             if self.synch is True:
                 COMM.Barrier()
 
@@ -130,6 +133,7 @@ class PushDIGing(PushSumOptimizer):
             ps_argmin_n -= step_size * ps_grad_n_k
             gossip_vector = np.append(ps_argmin_n, ps_grad_n_k)
             ps_result = psga.gossip(gossip_value=gossip_vector, ps_weight=ps_w)
+            print('%s: itr(%s) %s' % (UID, itr, ps_w))
 
             # Update argmin estimate
             ps_w = ps_result['ps_w']

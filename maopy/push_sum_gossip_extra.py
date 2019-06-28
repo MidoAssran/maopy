@@ -148,6 +148,7 @@ class ExtraPush(PushSumOptimizer):
             ps_n_k = (p_ps_n_km1 + ps_n_km1) - 0.5 * (p_ps_n_km2 + ps_n_km2) \
                      - step_size * (grad_km1 - grad_km2)
             argmin_est = ps_n_k / ps_w_k
+            print('%s: itr(%s) %s' % (UID, itr, ps_w_k))
 
             # Update the iteration indices on the ExtraPush variables
             ps_n_km2 = ps_n_km1

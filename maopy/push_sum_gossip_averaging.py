@@ -88,6 +88,7 @@ class PushSumGossipAverager(object):
         self.ps_n_buff = 0.
         self.ps_w_buff = 0.
         self.num_rcv_buff = 0
+        self.out_reqs = []
 
         self.all_reduce = all_reduce
 
@@ -126,7 +127,8 @@ class PushSumGossipAverager(object):
         for i, peer_uid in enumerate(peers):
             push_message = np.append(consensus_column[i]*ps_n,
                                      consensus_column[i]*ps_w)
-            _ = COMM.Ibsend(push_message, dest=peer_uid)
+            req = COMM.Ibsend(push_message, dest=peer_uid)
+            self.out_reqs.append(req)
 
     def recieve_asynchronously(self):
         """
@@ -160,10 +162,9 @@ class PushSumGossipAverager(object):
 
         ps_n, ps_w, itr = 0, 0, 0
         # Return messages once all are received
-        if num_in_peers == self.in_degree:
-            self.info_list.clear()
-            ps_n, ps_w, itr = self.ps_n_buff, self.ps_w_buff, self.num_rcv_buff
-            self.ps_n_buff, self.ps_w_buff, self.num_rcv_buff = 0., 0., 0
+        self.info_list.clear()
+        ps_n, ps_w, itr = self.ps_n_buff, self.ps_w_buff, self.num_rcv_buff
+        self.ps_n_buff, self.ps_w_buff, self.num_rcv_buff = 0., 0., 0
 
         return {'num_messages': itr, 'ps_w': ps_w, 'ps_n': ps_n}
 
@@ -332,6 +333,18 @@ class PushSumGossipAverager(object):
                 l_ps_w.log(ps_w, itr)
                 l_ps_n.log(ps_n, itr)
 
+            # Extra logic to determine whether all out-comms are done
+            done_list = []
+            done_sending = True
+            for i, req in enumerate(self.out_reqs):
+                if req.test()[0]:
+                    done_list.append(i)
+                else:
+                    done_sending = False
+                    break
+            if done_sending:
+                self.out_reqs.clear()
+
             if self.terminate_by_time is False:
                 condition = itr < num_gossip_itr
             else:
@@ -341,10 +354,11 @@ class PushSumGossipAverager(object):
 
         if log is True:
             return {"avg": l_avg, "ps_w": l_ps_w, "ps_n": l_ps_n,
-                    "rcvd": ext_rcvd}
+                    "rcvd": ext_rcvd, "sent": done_sending}
         else:
             return {"avg": avg, "ps_w": ps_w, "ps_n": ps_n,
-                    "rcvd": ext_rcvd, "rcvd_flag": ext_rcvd_flag}
+                    "rcvd": ext_rcvd, "rcvd_flag": ext_rcvd_flag,
+                    "sent": done_sending}
 
 
 if __name__ == "__main__":

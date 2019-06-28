@@ -21,8 +21,8 @@ NAME = GossipComm.name
 
 # Default constants
 DEFAULT_LEARNING_RATE = 0.1  # Time in seconds
-TAU_PROC = 1000
-TAU_MSG = 10000
+TAU_PROC = 40
+TAU_MSG = 100
 
 
 class PushSumSubgradientDescent(PushSumOptimizer):
@@ -45,8 +45,16 @@ class PushSumSubgradientDescent(PushSumOptimizer):
                  num_averaging_itr=1,
                  constant_step_size=True,
                  learning_rate=None,
-                 all_reduce=False):
+                 all_reduce=False,
+                 tau=None):
         """ Initialize the gossip optimization settings. """
+
+        if tau is None:
+            tau = TAU_PROC
+        self.tau_proc = tau
+        self.tau_msg = TAU_MSG - (tau - 1)
+        print('%s: tau-proc(%s) tau-msg(%s)' % (UID, self.tau_proc,
+                                                self.tau_msg))
 
         self.constant_step_size = constant_step_size
         if learning_rate is None:
@@ -149,6 +157,7 @@ class PushSumSubgradientDescent(PushSumOptimizer):
         num_rcvd = 0
         barrier_req = COMM.Ibarrier()
         barrier_time = 0.
+        just_probe = False
 
         # Optimization loop
         while condition:
@@ -159,7 +168,6 @@ class PushSumSubgradientDescent(PushSumOptimizer):
             # -- START Subgradient-Push update -- #
 
             # Gossip
-            just_probe = staleness > 0
             ps_result = psga.gossip(gossip_value=ps_n, ps_weight=ps_w,
                                     just_probe=just_probe)
             print('%s: jp(%s) %s' % (UID, just_probe, ps_w))
@@ -172,30 +180,37 @@ class PushSumSubgradientDescent(PushSumOptimizer):
             ps_w = ps_result['ps_w']
             print('%s: jp(%s) rcvd(%s) %s' % (UID, just_probe,
                                               ps_result['rcvd'], ps_w))
+            just_probe = (not ps_result['sent']) or (staleness > 0)
 
-            # Bound the relative update-rates
-            if barrier_req.test()[0]:
-                tau = 1
-                barrier_req = COMM.Ibarrier()
-            else:
-                tau += 1
-            if (tau >= TAU_PROC):
-                tau = 1
-                print('%s: too far ahead... waiting' % UID)
-                break_loop = False
-                timeout = time.time()
-                while not barrier_req.test()[0]:
-                    barrier_time = time.time() - timeout
-                    if (barrier_time) > 30.:
-                        break_loop = True
+            # Bound message delays (don't increment iteration if message is too
+            # stale)
+            if staleness <= self.tau_msg:
+
+                # Bound the relative update-rates
+                if barrier_req.test()[0]:
+                    tau = 1
+                    barrier_req = COMM.Ibarrier()
+                else:
+                    tau += 1
+                if (tau >= self.tau_proc):
+                    tau = 1
+                    print('%s: too far ahead... waiting' % UID)
+                    break_loop = False
+                    timeout = time.time()
+                    while not barrier_req.test()[0]:
+                        barrier_time = time.time() - timeout
+                        if (barrier_time) > 30.:
+                            break_loop = True
+                            break
+                    if break_loop:
+                        print('%s: barrier timeout... quiting' % UID)
                         break
-                if break_loop:
-                    print('%s: barrier timeout... quiting' % UID)
-                    break
 
-            # Gradient step
-            if (tau - 1) + staleness <= TAU_MSG:
+                # if UID % 2 == 0:
+                #     time.sleep(.5)
+
                 itr += 1
+                # Gradient step
                 print('%s: another itr (%s)' % (UID, itr))
                 ps_n = self._gradient_descent_step(ps_n=ps_n,
                                                    argmin_est=argmin_est,
@@ -236,7 +251,6 @@ class PushSumSubgradientDescent(PushSumOptimizer):
                 l_argmin_est.log(argmin_est, itr,
                                  time_offset=(-barrier_time))
                 l_ps_w.log(ps_w, itr, time_offset=(-barrier_time))
-
 
         print('%s: sent(%s), received(%s)\t itr(%s) time(%.5f), %s'
               % (UID, num_sent, num_rcvd, itr,

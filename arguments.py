@@ -38,6 +38,11 @@ def get_args():
         default=0.1,
         help='learning rate (default: 0.1)')
     parser.add_argument(
+        '--tau',
+        type=int,
+        default=32,
+        help='maximum processing delay (default: 32)')
+    parser.add_argument(
         '--seed',
         type=int,
         default=1,

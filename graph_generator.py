@@ -14,14 +14,15 @@ Netowrk Generator script creates graph adjacency matrices.abs
 """
 
 import numpy as np
+from utils.distributed import score_graph, bfs
 
 CONFIG = {
     'save-fpath': './graphs/',
     'graph-type': 'erdos-renyi',
     'graphs': [
-        {'num-nodes': n, 'avg-degree': max(1, n // 4),
-         'num-trials': 10}
-        for n in [2, 4, 8, 16, 32, 64, 128]
+        {'num-nodes': n, 'avg-degree': min(n-1, n // 4),
+         'num-trials': 10*n}
+        for n in [4, 8, 16, 32, 48, 64, 128]
     ]
 }
 
@@ -86,31 +87,6 @@ def main():
 
         print(save_fname, '\n score:', lowest_score, '\n', best_graph)
         np.savez_compressed(save_fname, graph=best_graph)
-
-
-def score_graph(mixing_matrix):
-    """ Compute second largest eig-val. of doubly stochastic mixing matrix. """
-
-    arr_lambda = np.linalg.eigvals(mixing_matrix)
-    for i, l in enumerate(arr_lambda):
-        arr_lambda[i] = abs(l)
-    arr_lambda = np.sort(arr_lambda)  # sort in increasing order
-    return arr_lambda[-2]
-
-
-def bfs(adjacency, num_nodes):
-    """ Breadth first search of a graph. """
-
-    marker = np.zeros(num_nodes)
-    marker[0] = 1
-    queue = [0]
-    while queue:
-        node = int(queue.pop())
-        for row, val in enumerate(adjacency[:, node]):
-            if (marker[row] == 0) and (val == 1):
-                marker[row] = 1
-                queue.insert(0, row)
-    return marker
 
 
 if __name__ == '__main__':
