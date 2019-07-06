@@ -1,0 +1,6 @@
+build/**
+third_party/autoconf*/**
+third_party/automake*/**
+third_party/libtool*/**
+third_party/m4*/**
+src/__pycache__/**

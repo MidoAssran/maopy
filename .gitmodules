@@ -1,0 +1,6 @@
+[submodule "third_party/mpi4py"]
+	path = third_party/mpi4py
+	url = https://github.com/mpi4py/mpi4py.git
+[submodule "third_party/ompi"]
+	path = third_party/ompi
+	url = https://github.com/open-mpi/ompi.git
