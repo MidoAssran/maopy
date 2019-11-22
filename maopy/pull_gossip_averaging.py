@@ -6,6 +6,9 @@ Pull Gossip Averager class for parallel averaging using row stochastic mixing
               Based on the paper (todo:fill-in)
 """
 
+import time
+from collections import defaultdict
+
 from mpi4py import MPI
 import numpy as np
 
@@ -40,7 +43,7 @@ class PullGossipAverager(object):
         self.out_degree = len(self.peers)
         self.in_degree = in_degree
         self.info_list = []
-        self.out_reqs = []
+        self.out_reqs = defaultdict(list)
 
     def push_messages_to_peers(self, peers, ps_n):
         """
@@ -52,8 +55,17 @@ class PullGossipAverager(object):
         :rtype: void
         """
         for i, peer_uid in enumerate(peers):
-            req = COMM.Ibsend(ps_n, dest=peer_uid)
-            self.out_reqs.append(req)
+            # -- check if last message to peer was sent
+            done_indices = []
+            for i, req in enumerate(self.out_reqs[peer_uid]):
+                if not req.test()[0]:
+                    done_out_reqs = False
+                    continue
+                done_indices.append(i)
+            for index in sorted(done_indices, reverse=True):
+                    del self.out_reqs[peer_uid][index]
+            req = COMM.Ibsend(ps_n, dest=peer_uid, tag=1573)
+            self.out_reqs[peer_uid].append(req)
 
     def receive_asynchronously(self, gossip_value):
         """
@@ -61,16 +73,27 @@ class PullGossipAverager(object):
 
         :rtype: np.array[float] or float
         """
-        rcvd_data = [gossip_value]
-        info = [MPI.Status()]
-        while COMM.Iprobe(source=MPI.ANY_SOURCE, status=info[0]):
-            self.info_list.append(info[0])
-            info[0] = MPI.Status()
-            data = np.empty(gossip_value.shape, dtype=np.float64)
-            COMM.Recv(data, info[0].source)
-            rcvd_data.append(data)
+        rcvd_data = defaultdict(list)
+        rcvd_data[UID].append(gossip_value)
 
-        return rcvd_data
+        info = MPI.Status()
+        while COMM.Iprobe(source=MPI.ANY_SOURCE, status=info, tag=1573):
+            self.info_list.append(info)
+            data = np.empty(gossip_value.shape, dtype=np.float64)
+            COMM.Recv(data, info.source, tag=1573)
+            rcvd_data[info.source].append(data)
+            info = MPI.Status()
+
+        new_data = []
+        for peer in rcvd_data:
+            msg_list = np.array(rcvd_data[peer])
+            # assume messages arrive in-order (take most recent)
+            msg = msg_list[-1]
+            print('%s: from %s (num-msgs %s)'
+                  % (UID, peer, len(msg_list)))
+            new_data.append(msg)
+
+        return new_data
 
     def gossip(self, gossip_value, just_probe=False):
         """
@@ -86,18 +109,6 @@ class PullGossipAverager(object):
             self.push_messages_to_peers(self.peers, gossip_value)
         rcvd_data = self.receive_asynchronously(gossip_value)
         gossip_value = sum(rcvd_data)/len(rcvd_data)
-
-        # Extra logic to determine whether all out-comms are done
-        done_list = []
-        done_sending = True
-        for i, req in enumerate(self.out_reqs):
-            if req.test()[0]:
-                done_list.append(i)
-            else:
-                done_sending = False
-                break
-        if done_sending:
-            self.out_reqs.clear()
 
         return gossip_value
 
@@ -116,10 +127,27 @@ if __name__ == "__main__":
         plga = PullGossipAverager(peers=[(UID + 1) % SIZE, (UID + 2) % SIZE],
                                   in_degree=2)
 
-        for itr in range(10):
+        for itr in range(100):
             gossip_value = plga.gossip(gossip_value)
             # report gossip-value
             print('%s: %s' % (UID, gossip_value))
+
+        # Fetch any lingering message
+        COMM.Barrier()
+        print('%s: Fetching lingering msgs...' % (UID))
+        timeout = time.time()
+        while (time.time() - timeout) <= 10.:
+            gossip_value = plga.gossip(gossip_value,
+                                       just_probe=True)
+            time.sleep(0.5)
+
+        # make sure true mean has not changed (aggregate reulsts)
+        print('%s: %s' % (UID, gossip_value))
+        COMM.Barrier()
+        print('%s: sanity check' % UID)
+        total = np.empty(gossip_value.shape, dtype=np.float64)
+        COMM.Allreduce(gossip_value, total, op=MPI.SUM)
+        print('%s: network-wide average %s' % (UID, total / SIZE))
 
     # Run a demo where nodes average their unique IDs
     demo(gossip_value=UID)

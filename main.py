@@ -23,11 +23,14 @@ def main(args):
     printer = Printer(args.rank, args.size, args.comm)
 
     # Load peers
-    # peers, in_degree, out_degree = load_peers(args.graph_file_name,
-    #                                           args.rank,
-    #                                           printer)
-    peers = [(args.rank + 1) % args.size]
-    in_degree, out_degree = len(peers), len(peers)
+    if 'ring' in args.graph_file_name:
+        peers = [(args.rank + 1) % args.size]
+        in_degree, out_degree = len(peers), len(peers)
+    else:
+        peers, in_degree, out_degree = load_peers(args.graph_file_name,
+                                                  args.rank,
+                                                  printer)
+
     printer.stdout('p/o/i: %s/%s/%s' % (peers, out_degree, in_degree))
 
     # Load least squares data
@@ -60,19 +63,21 @@ def main(args):
     l_argmin_est = loggers['argmin_est'].history
     l_ps_w = loggers['ps_w'].history
 
-    # Load global objective
-    objective, _, _, arg_min = load_least_squares(args.data_file_name, 0, 1)
-    true_obj = objective(arg_min)
-    start_obj = objective(arg_start)
-    final_obj = objective(loggers['argmin_est'].gossip_value)
-    printer.stdout(
-        '(truth: %.4E)(final: %.4E)(start: %.4E)' % (
-            true_obj, final_obj, start_obj)
-    )
+    # # Load global objective
+    # objective, _, _, arg_min = load_least_squares(args.data_file_name, 0, 1)
+    # true_obj = objective(arg_min)
+    # start_obj = objective(arg_start)
+    # final_obj = objective(loggers['argmin_est'].gossip_value)
+    # printer.stdout(
+    #     '(truth: %.4E)(final: %.4E)(start: %.4E)' % (
+    #         true_obj, final_obj, start_obj)
+    # )
+
     np.savez_compressed(args.fpath,
                         argmin_est=l_argmin_est,
                         ps_w=l_ps_w)
-    args.comm.Barrier()
+
+    printer.stdout('fin.')
 
 
 if __name__ == '__main__':

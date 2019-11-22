@@ -277,23 +277,33 @@ if __name__ == "__main__":
         To run the demo, run the following from the multi_agent_optimization directory CLI:
             mpiexec -n $(num_nodes) python -m do4py.push_sum_gossip_gradient_descent
         """
-
-        # Create objective function and its gradient
+        # Starting point
         np.random.seed(seed=UID)
         x_start = np.random.randn(num_features, 1)
-        a_m = np.random.randn(num_instances_per_node, num_features)
-        b_v = np.random.randn(num_instances_per_node, 1)
+
+        # Create objective function and its gradient
+        np.random.seed(seed=0)
+        ga_m = np.random.randn(SIZE * num_instances_per_node, num_features)
+        gb_v = np.random.randn(SIZE * num_instances_per_node, 1)
+        globjective = lambda x: 0.5 * (np.linalg.norm(ga_m.dot(x) - gb_v))**2
+        obj_start = globjective(x_start)
+
+        # Partition objective function into local objectives
+        start = UID * num_instances_per_node
+        a_m = ga_m[start:start+num_instances_per_node]
+        b_v = gb_v[start:start+num_instances_per_node]
         objective = lambda x: 0.5 * (np.linalg.norm(a_m.dot(x) - b_v))**2
         gradient = lambda x: a_m.T.dot(a_m.dot(x)-b_v)
+
 
         pssgd = PushSumSubgradientDescent(objective=objective,
                                           sub_gradient=gradient,
                                           arg_start=x_start,
-                                          synch=True,
+                                          synch=False,
                                           peers=[(UID + 1) % SIZE, (UID + 2) % SIZE],
                                           step_size=1e-4,
-                                          terminate_by_time=False,
-                                          termination_condition=1000,
+                                          terminate_by_time=True,
+                                          termination_condition=5,
                                           log=True,
                                           in_degree=2,
                                           num_averaging_itr=1,
@@ -303,7 +313,7 @@ if __name__ == "__main__":
         loggers = pssgd.minimize()
         l_argmin_est = loggers['argmin_est']
 
-        l_argmin_est.print_gossip_value(UID, label='argmin_est', l2=True)
+        print('%s: (start: %s)(finish: %s)' % (UID, obj_start, globjective(l_argmin_est.gossip_value)))
 
     # Run a demo where nodes minimize a sum of squares function
     demo(num_instances_per_node=5000, num_features=100)

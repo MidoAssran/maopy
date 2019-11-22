@@ -121,9 +121,6 @@ class PushDIGing(PushSumOptimizer):
             # if UID == 0:
             #     time.sleep(.1)
 
-            if self.synch is True:
-                COMM.Barrier()
-
             # Update iteration
             itr += 1
 
@@ -135,18 +132,21 @@ class PushDIGing(PushSumOptimizer):
             ps_result = psga.gossip(gossip_value=gossip_vector, ps_weight=ps_w)
             print('%s: itr(%s) %s' % (UID, itr, ps_w))
 
-            # Update argmin estimate
-            ps_w = ps_result['ps_w']
-            ps_n = np.array(ps_result['ps_n'])
-            ps_argmin_n = ps_n[:ps_argmin_n.size].reshape(ps_argmin_n.shape)
-            argmin_est = ps_argmin_n / ps_w
+            try:
+                # Update argmin estimate
+                ps_w = ps_result['ps_w']
+                ps_n = np.array(ps_result['ps_n'])
+                ps_argmin_n = ps_n[:ps_argmin_n.size].reshape(ps_argmin_n.shape)
+                argmin_est = ps_argmin_n / ps_w
 
-            # Update gradient tracking estimate
-            grad_k = gradient(argmin_est)
-            ps_grad_n_k = ps_n[ps_argmin_n.size:].reshape(ps_grad_n_k.shape)
-            ps_grad_n_k += grad_k - grad_km1
-            # Update the past gradient (at itr. k minus 1)
-            grad_km1 = grad_k
+                # Update gradient tracking estimate
+                grad_k = gradient(argmin_est)
+                ps_grad_n_k = ps_n[ps_argmin_n.size:].reshape(ps_grad_n_k.shape)
+                ps_grad_n_k += grad_k - grad_km1
+                # Update the past gradient (at itr. k minus 1)
+                grad_km1 = grad_k
+            except Exception as e:
+                print('%s: itr(%s) error: %s' % (UID, itr, e))
 
             # -- END PushDIGing update -- #
 
@@ -161,6 +161,10 @@ class PushDIGing(PushSumOptimizer):
                 condition = itr < num_gossip_itr
             else:
                 condition = time.time() < end_time
+
+            if self.synch is True:
+                COMM.Barrier()
+
 
         self.argmin_est = argmin_est
 

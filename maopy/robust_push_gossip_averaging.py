@@ -95,13 +95,11 @@ class RobustPushAverager(object):
         new_data = np.zeros(gossip_value.shape, dtype=np.float64)
         for peer in rcvd_data:
             msg_list = np.array(rcvd_data[peer])
-            # assume messages arrive in-order (take most recent)
+            # -- assume messages arrive in-order (take most recent)
             msg = msg_list[-1]
-            print(peer, msg)
-            # new data is diff between new msg and whats in our buffer
+            # -- new data is diff between new msg and whats in our buffer
             new_data += msg - self.in_buffer[peer]
-            print(msg - self.in_buffer[peer])
-            # update buffer with the new msg
+            # -- update buffer with the new msg
             self.in_buffer[peer] = msg
 
         return new_data
