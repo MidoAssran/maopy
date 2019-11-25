@@ -64,7 +64,7 @@ def get_args():
     args = parser.parse_args()
 
     # Only these algorithms currently supported
-    assert args.alg in ['gp', 'pd', 'ep']
+    assert args.alg in ['gp', 'pd', 'ep', 'asy-sonata']
 
     # Message passing and network variables
     args.size = GossipComm.size

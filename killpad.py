@@ -1,11 +1,12 @@
 import os
 
 if __name__ == '__main__':
-    command = 'sbatch {fpath}'
-    fpath = 'job_scripts/submit_{tag}-n{num_nodes}-{graph}-lr{lr}.sh'
+    # command = 'sbatch {fpath}'
+    command = 'scancel -n {fpath}'
+    fpath = '{tag}-n{num_nodes}-{graph}-lr{lr}'
     world_size_list = [40]
     tag_list = [
-        'asy-sonata',
+        'ep', 'gp', 'pd'
     ]
     graph_list = ['erdos-renyi', 'ring']
     lr_list = [1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2]

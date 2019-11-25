@@ -83,8 +83,7 @@ class AsySONATA(object):
         3) Repeat until completed $(termination_condition) time
 
         :rtype:
-            log is True: dict("argmin_est": GossipLogger,
-                              "ps_w": GossipLogger)
+            log is True: dict("argmin_est": GossipLogger)
 
             log is False: dict("argmin_est": float,
                                "objective": float,
