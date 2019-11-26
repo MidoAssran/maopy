@@ -10,17 +10,16 @@ import time
 
 import numpy as np
 
-from .gossip_comm import GossipComm
-from .robust_push_gossip_averaging import RobustPushAverager
-from .pull_gossip_averaging import PullGossipAverager
+from .gossip.gossip_comm import GossipComm
+from .gossip.gossip_log import GossipLog
+from .gossip.robust_push_gossip import RobustPushAverager
+from .gossip.pull_gossip import PullGossipAverager
 
 # Message passing and network variables
 COMM = GossipComm.comm
 SIZE = GossipComm.size
 UID = GossipComm.uid
 NAME = GossipComm.name
-
-DEFAULT_STEP_SIZE = 1e-2
 
 
 class AsySONATA(object):
@@ -33,8 +32,8 @@ class AsySONATA(object):
                  sub_gradient,
                  arg_start,
                  peers=None,
-                 step_size=None,
-                 termination_condition=None,
+                 step_size=1e-2,
+                 max_time_sec=100,
                  in_degree=SIZE,
                  log=True):
         """ Initialize the gossip optimization settings. """
@@ -46,16 +45,20 @@ class AsySONATA(object):
             peers = [i for i in range(SIZE) if i != UID]
         self.peers = peers
 
-        if step_size is None:
-            step_size = DEFAULT_STEP_SIZE
         self.step_size = step_size
 
-        self.termination_condition = termination_condition
+        self.max_time = max_time_sec
+
+        # Termination function
+        def terminator(time_sec=0):
+            return (time_sec > self.max_time)
+        self.the_terminator = terminator
+
         self.in_degree = in_degree
         self.log = log
 
-        self.rpga = RobustPushAverager(peers, in_degree)
-        self.plga = PullGossipAverager(peers, in_degree)
+        self.rpga = RobustPushAverager(peers)
+        self.plga = PullGossipAverager(peers)
 
     def __setattr__(self, name, value):
         super(AsySONATA, self).__setattr__(name, value)
@@ -73,12 +76,13 @@ class AsySONATA(object):
 
     def minimize(self):
         """
-        Minimize the objective specified in settings using the PushDIGing procedure
+        Minimize the objective specified in settings using the PushDIGing
+        procedure
 
         Procedure:
         1) Update: argmin_est -= step_size * ps_grad_n
         2) Gossip: argmin_est = pull_gossip([argmin_est])
-        3) Update: ps_grad_n += sub_gradient(argmin_est@(k)) - sub_gradient(argmin_est@(k-1))
+        3) Update: ps_grad_n += grad(argmin_est@(k)) - grad(argmin_est@(k-1))
         4) Gossip: ps_grad_n = robust_push_gossip(ps_grad_n)
         3) Repeat until completed $(termination_condition) time
 
@@ -104,15 +108,13 @@ class AsySONATA(object):
 
         # Setup loop parameters
         itr = 0
-        log = self.log
-        if log:
+
+        if self.log:
             # log the argmin estimate
-            from .gossip_log import GossipLog
             l_argmin_est = GossipLog()
             l_argmin_est.log(argmin_est, itr)
 
-        end_time = time.time() + self.termination_condition
-        condition = time.time() < end_time
+        start_time = time.time()
 
         # Start optimization at the same time
         COMM.Barrier()
@@ -120,15 +122,14 @@ class AsySONATA(object):
         np.random.seed(UID)
 
         # Optimization loop
-        while condition:
+        while not self.the_terminator(time.time()-start_time):
 
             # Update iteration
             itr += 1
 
-            # -- START AsySONATA update -- #
-
             # -- local descent step
             argmin_est -= step_size * ps_grad_n_k
+
             # -- pull (row-stochastic) gossip argmin-est
             argmin_est = plga.gossip(gossip_value=argmin_est)
 
@@ -136,17 +137,13 @@ class AsySONATA(object):
             grad_k = gradient(argmin_est)
             ps_grad_n_k += grad_k - grad_km1
             grad_km1 = grad_k
+
             # -- robust-push-sum gossip gradient tracker (discard ps-weight)
             # ps_grad_n_k = rpga.gossip(gossip_value=ps_grad_n_k)
 
-            # -- END AsySONATA update -- #
-
-            # Log the varaibles
-            if log:
+            # -- log the varaibles
+            if self.log:
                 l_argmin_est.log(argmin_est, itr)
-
-            # Update the termination flag
-            condition = time.time() < end_time
 
         COMM.Barrier()
         # Fetch any lingering message
@@ -160,14 +157,14 @@ class AsySONATA(object):
             time.sleep(0.5)
         barrier_time = (time.time() - timeout)
         # Log the varaibles
-        if log:
+        if self.log:
             itr += 1
             l_argmin_est.log(argmin_est, itr,
                              time_offset=(-barrier_time))
 
         self.argmin_est = argmin_est
 
-        if log is True:
+        if self.log:
             return {"argmin_est": l_argmin_est}
         else:
             return {"argmin_est": argmin_est,
@@ -181,7 +178,8 @@ if __name__ == "__main__":
         """
         Demo fo the use of the AsySONATA class.
 
-        To run the demo, run the following from the multi_agent_optimization directory CLI:
+        To run the demo, run the following from the multi_agent_optimization
+        directory CLI:
             mpiexec -n $(num_nodes) python -m maopy.asy_sonata
         """
         # Starting point
@@ -207,7 +205,7 @@ if __name__ == "__main__":
                               arg_start=x_start,
                               peers=[(UID + 1) % SIZE, (UID + 2) % SIZE],
                               step_size=1e-5,
-                              termination_condition=.5,
+                              max_time_sec=5.,
                               in_degree=2)
 
         loggers = asysonata.minimize()

@@ -25,10 +25,9 @@ class RobustPushAverager(object):
     However, does not keep track of push-sum weight.
 
     :param peers: UniqueIDs of neighbouring peers in network (used for comm.)
-    :param in_degree: Num. messages to expect in each itr.
     """
 
-    def __init__(self, peers=None, in_degree=SIZE):
+    def __init__(self, peers=None):
         """ Initialize the distributed averaging settings """
 
         # Break on all numpy warnings
@@ -40,14 +39,13 @@ class RobustPushAverager(object):
         self.peers = peers
 
         self.out_degree = len(self.peers)
-        self.in_degree = in_degree
         self.info_list = []
         self.out_buffer = {}
         self.in_buffer = {}
-        self.out_reqs = []
+        self.out_reqs = defaultdict(list)
 
     def make_stochastic_weight_column(self):
-        """ Creates a stochastic column of weights for the gossip mixing matrix. """
+        """ Creates a column of weights for the mixing matrix. """
         column = {}
         lo_p = 1.0 / (self.out_degree + 1.0)
         out_p = [1.0 / (self.out_degree + 1.0) for _ in range(self.out_degree)]
@@ -65,17 +63,29 @@ class RobustPushAverager(object):
         :rtype: void
         """
         for i, peer_uid in enumerate(peers):
+
+            # -- check if last message to peer was sent
+            done_indices = []
+            for i, req in enumerate(self.out_reqs[peer_uid]):
+                if not req.test()[0]:
+                    continue
+                done_indices.append(i)
+            for index in sorted(done_indices, reverse=True):
+                    del self.out_reqs[peer_uid][index]
+
+            # -- send message to peer
             push_message = consensus_column[i]*ps_n
             if peer_uid not in self.out_buffer:
                 self.out_buffer[peer_uid] = push_message
             else:
                 self.out_buffer[peer_uid] += push_message
             req = COMM.Ibsend(self.out_buffer[peer_uid], dest=peer_uid)
-            self.out_reqs.append(req)
+            self.out_reqs[peer_uid].append(req)
 
     def receive_asynchronously(self, gossip_value):
         """
-        Probe buffer (non-blocking) & and retrieve all messages until the receive buffer is empty.
+        Probe buffer (non-blocking) & and retrieve all messages until the
+        receive buffer is empty.
 
         :rtype: np.array[float] or float
         """
@@ -124,18 +134,6 @@ class RobustPushAverager(object):
             gossip_value *= lo_p
         gossip_value += self.receive_asynchronously(gossip_value)
 
-        # Extra logic to determine whether all out-comms are done
-        done_list = []
-        done_sending = True
-        for i, req in enumerate(self.out_reqs):
-            if req.test()[0]:
-                done_list.append(i)
-            else:
-                done_sending = False
-                break
-        if done_sending:
-            self.out_reqs.clear()
-
         return gossip_value
 
 
@@ -147,13 +145,11 @@ if __name__ == "__main__":
         Demo of the use of the PullGossipAverager class
 
         To run the demo, run the following form the command line:
-            mpiexec -n $(num_nodes) python -m pull_gossip_averaging
+            mpiexec -n $(num_nodes) python -m maopy.robust_push_gossip
         """
 
         # Initialize averager
-        rpga = RobustPushAverager(
-            peers=[(UID + 1) % SIZE, (UID + 2) % SIZE],
-            in_degree=2)
+        rpga = RobustPushAverager(peers=[(UID + 1) % SIZE, (UID + 2) % SIZE])
 
         gossip_value = np.append(gossip_value, 1.)
 

@@ -29,19 +29,15 @@ class PullGossipAverager(object):
     :param in_degree: Num. messages to expect in each itr.
     """
 
-    def __init__(self, peers=None, in_degree=SIZE):
+    def __init__(self, peers=[(UID+1) % SIZE]):
         """ Initialize the distributed averaging settings """
 
         # Break on all numpy warnings
         np.seterr(all='raise')
 
-        # Set peers to all if not told who peers are
-        if not peers:
-            peers = [i for i in range(SIZE) if i != UID]
         self.peers = peers
 
         self.out_degree = len(self.peers)
-        self.in_degree = in_degree
         self.info_list = []
         self.out_reqs = defaultdict(list)
 
@@ -59,7 +55,6 @@ class PullGossipAverager(object):
             done_indices = []
             for i, req in enumerate(self.out_reqs[peer_uid]):
                 if not req.test()[0]:
-                    done_out_reqs = False
                     continue
                 done_indices.append(i)
             for index in sorted(done_indices, reverse=True):
@@ -69,7 +64,8 @@ class PullGossipAverager(object):
 
     def receive_asynchronously(self, gossip_value):
         """
-        Probe buffer (non-blocking) & and retrieve all messages until the receive buffer is empty.
+        Probe buffer (non-blocking) & and retrieve all messages until the
+        receive buffer is empty.
 
         :rtype: np.array[float] or float
         """
@@ -120,12 +116,11 @@ if __name__ == "__main__":
         Demo of the use of the PullGossipAverager class
 
         To run the demo, run the following form the command line:
-            mpiexec -n $(num_nodes) python -m pull_gossip_averaging
+            mpiexec -n $(num_nodes) python -m maopy.pull_gossip
         """
 
         # Initialize averager
-        plga = PullGossipAverager(peers=[(UID + 1) % SIZE, (UID + 2) % SIZE],
-                                  in_degree=2)
+        plga = PullGossipAverager(peers=[(UID + 1) % SIZE, (UID + 2) % SIZE])
 
         for itr in range(100):
             gossip_value = plga.gossip(gossip_value)
