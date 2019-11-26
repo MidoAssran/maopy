@@ -82,7 +82,7 @@ class GradientPush(object):
 
     def minimize(self):
         """
-        Minimize the objective
+        Minimize the objective using GradientPush
 
         Procedure:
         1) ps_n = ps_n - step_size * sub_gradient(argmin_est)

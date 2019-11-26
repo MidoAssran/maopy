@@ -68,7 +68,7 @@ class ExtraPush(object):
 
     def minimize(self):
         """
-        Minimize objective using EXTRAPUsh
+        Minimize objective using ExtraPush
 
         Procedure:
         1) Gossip: push_sum_gossip([ps_n_km1, ps_w_km1])

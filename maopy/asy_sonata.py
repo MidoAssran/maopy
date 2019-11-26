@@ -31,7 +31,7 @@ class AsySONATA(object):
     def __init__(self, objective,
                  sub_gradient,
                  arg_start,
-                 peers=None,
+                 peers=[(UID+1) % SIZE],
                  step_size=1e-2,
                  max_time_sec=100,
                  in_degree=SIZE,
@@ -41,8 +41,6 @@ class AsySONATA(object):
         self.argmin_est = np.array(arg_start)
         self.objective = objective
         self.sub_gradient = sub_gradient
-        if peers is None:
-            peers = [i for i in range(SIZE) if i != UID]
         self.peers = peers
 
         self.step_size = step_size
@@ -76,8 +74,7 @@ class AsySONATA(object):
 
     def minimize(self):
         """
-        Minimize the objective specified in settings using the PushDIGing
-        procedure
+        Minimize objective using AsySONATA
 
         Procedure:
         1) Update: argmin_est -= step_size * ps_grad_n
@@ -94,23 +91,16 @@ class AsySONATA(object):
                                "sub_gradient": float)
         """
 
-        rpga = self.rpga
-        plga = self.plga
-
-        step_size = self.step_size
-        gradient = self.sub_gradient
-        objective = self.objective
-
         # ----Initialize asy-sonata---- #
         argmin_est = self.argmin_est
-        ps_grad_n_k = gradient(argmin_est)
+        ps_grad_n_k = self.sub_gradient(argmin_est)
         grad_km1 = ps_grad_n_k
 
         # Setup loop parameters
         itr = 0
 
         if self.log:
-            # log the argmin estimate
+            # -- log the argmin estimate
             l_argmin_est = GossipLog()
             l_argmin_est.log(argmin_est, itr)
 
@@ -128,18 +118,18 @@ class AsySONATA(object):
             itr += 1
 
             # -- local descent step
-            argmin_est -= step_size * ps_grad_n_k
+            argmin_est -= self.step_size * ps_grad_n_k
 
             # -- pull (row-stochastic) gossip argmin-est
-            argmin_est = plga.gossip(gossip_value=argmin_est)
+            argmin_est = self.plga.gossip(gossip_value=argmin_est)
 
             # -- update gradient tracking estimate
-            grad_k = gradient(argmin_est)
+            grad_k = self.sub_gradient(argmin_est)
             ps_grad_n_k += grad_k - grad_km1
             grad_km1 = grad_k
 
             # -- robust-push-sum gossip gradient tracker (discard ps-weight)
-            # ps_grad_n_k = rpga.gossip(gossip_value=ps_grad_n_k)
+            ps_grad_n_k = self.rpga.gossip(gossip_value=ps_grad_n_k)
 
             # -- log the varaibles
             if self.log:
@@ -150,10 +140,10 @@ class AsySONATA(object):
         print('%s: Fetching lingering msgs...' % (UID))
         timeout = time.time()
         while (time.time() - timeout) <= 5.:
-            argmin_est = plga.gossip(gossip_value=argmin_est,
-                                     just_probe=True)
-            ps_grad_n_k = rpga.gossip(gossip_value=ps_grad_n_k,
-                                      just_probe=True)
+            argmin_est = self.plga.gossip(gossip_value=argmin_est,
+                                          just_probe=True)
+            ps_grad_n_k = self.rpga.gossip(gossip_value=ps_grad_n_k,
+                                           just_probe=True)
             time.sleep(0.5)
         barrier_time = (time.time() - timeout)
         # Log the varaibles
@@ -168,8 +158,8 @@ class AsySONATA(object):
             return {"argmin_est": l_argmin_est}
         else:
             return {"argmin_est": argmin_est,
-                    "objective": objective(argmin_est),
-                    "sub_gradient": gradient(argmin_est)}
+                    "objective": self.objective(argmin_est),
+                    "sub_gradient": self.sub_gradient(argmin_est)}
 
 
 if __name__ == "__main__":

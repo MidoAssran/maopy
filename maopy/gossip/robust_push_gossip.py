@@ -79,7 +79,8 @@ class RobustPushAverager(object):
                 self.out_buffer[peer_uid] = push_message
             else:
                 self.out_buffer[peer_uid] += push_message
-            req = COMM.Ibsend(self.out_buffer[peer_uid], dest=peer_uid)
+            req = COMM.Ibsend(self.out_buffer[peer_uid], dest=peer_uid,
+                              tag=7462)
             self.out_reqs[peer_uid].append(req)
 
     def receive_asynchronously(self, gossip_value):
@@ -92,10 +93,10 @@ class RobustPushAverager(object):
         rcvd_data = defaultdict(list)
 
         info = MPI.Status()
-        while COMM.Iprobe(source=MPI.ANY_SOURCE, status=info):
+        while COMM.Iprobe(source=MPI.ANY_SOURCE, status=info, tag=7462):
             self.info_list.append(info)
             data = np.empty(gossip_value.shape, dtype=np.float64)
-            COMM.Recv(data, info.source)
+            COMM.Recv(data, info.source, tag=7462)
             if info.source not in self.in_buffer:
                 self.in_buffer[info.source] = np.zeros(gossip_value.shape,
                                                        dtype=np.float64)
