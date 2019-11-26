@@ -26,7 +26,7 @@ def get_args():
     parser.add_argument(
         '--alg',
         default='gp',
-        help='algorithm to use: gp | pd | ep')
+        help='algorithm to use: gp | pd | ep | asy-sonata')
     parser.add_argument(
         '--asynch',
         action='store_true',
@@ -55,16 +55,25 @@ def get_args():
     parser.add_argument(
         '--log-dir',
         default='/tmp/maopy/',
-        help='directory to save agent logs (default: /tmp/gym)')
+        help='directory to save agent logs (default: /tmp/maopy)')
     parser.add_argument(
         '--use-lr-decay',
         action='store_true',
         default=False,
         help='use a linear schedule on the learning rate')
+    parser.add_argument(
+        '--experiment',
+        type=str,
+        default='least-squares',
+        help='whether to use "least-squares" or "softmax" objective')
     args = parser.parse_args()
 
     # Only these algorithms currently supported
     assert args.alg in ['gp', 'pd', 'ep', 'asy-sonata']
+
+    # Only these two objectives functions currently defined in utils
+    assert ('least_squares' in args.experiment) \
+        or ('softmax' in args.experiment)
 
     # Message passing and network variables
     args.size = GossipComm.size

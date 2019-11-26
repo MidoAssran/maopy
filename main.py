@@ -14,10 +14,13 @@ from maopy.asy_sonata import AsySONATA
 from utils.distributed import Printer
 from utils.distributed import load_peers
 from utils.distributed import load_least_squares
+from utils.distributed import load_softmax
 
 
 def main(args):
     """ The experiment script is contained within this function. """
+
+    # Seed algorithm
     np.random.seed(args.seed)
 
     # Make stdout printer
@@ -31,12 +34,15 @@ def main(args):
         peers, in_degree, out_degree = load_peers(args.graph_file_name,
                                                   args.rank,
                                                   printer)
-
     printer.stdout('p/o/i: %s/%s/%s' % (peers, out_degree, in_degree))
 
     # Load least squares data
-    objective, gradient, arg_start, arg_min = load_least_squares(
-        args.data_file_name, args.rank, args.size, printer=printer)
+    if 'least-squares' in args.experiment:
+        objective, gradient, arg_start, arg_min = load_least_squares(
+            args.data_file_name, args.rank, args.size, printer=printer)
+    elif 'softmax' in args.experiment:
+        objective, gradient, arg_start = load_softmax(
+            args.data_file_name, args.rank, args.size, printer=printer)
 
     # Initialize multi-agent optimizer
     if args.alg == 'asy-sonata':
@@ -91,7 +97,6 @@ def main(args):
     #     '(truth: %.4E)(final: %.4E)(start: %.4E)' % (
     #         true_obj, final_obj, start_obj)
     # )
-
 
     printer.stdout('fin.')
 
