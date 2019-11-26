@@ -20,7 +20,7 @@ CONFIG = {
     'save-fpath': './graphs/',
     'graph-type': 'erdos-renyi',
     'graphs': [
-        {'num-nodes': n, 'avg-degree': min(n-1, n // 4),
+        {'num-nodes': n, 'avg-degree': min(n-1, 4),
          'num-trials': 10*n}
         for n in [4, 8, 16, 32, 48, 64, 128]
     ]

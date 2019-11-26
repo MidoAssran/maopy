@@ -25,14 +25,14 @@ mpirun --mca btl_base_warn_component_unused 0 \\
     --data-file-name 'qp_data_sg.npz' \\
     --graph-file-name '{graph}_n{size}.npz' \\
     --alg {alg} --lr {lr} --seed 1 --num-steps {steps} \\
-    --log-dir '/async_maopy_playground/slurm/qp/n{size}/step-size{lr}/{graph}/{tag}/' '''
+    --log-dir '/async_maopy_playground/slurm/nll/n{size}/step-size{lr}/{graph}/{tag}/' '''
 
 # Sys.-Run Config
 rtime = '00:40:00'
 tau = 4
-world_size_list = [40]
-lr_list = [1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2]
-graph_list = ['erdos-renyi', 'ring']
+world_size_list = [2, 4, 8, 16, 32, 64, 128]
+lr_list = [1e0]
+graph_list = ['erdos-renyi']
 alg_list = {
     'asy-sonata': {
         'alg': 'asy-sonata',
