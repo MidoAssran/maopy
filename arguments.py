@@ -2,7 +2,7 @@ import argparse
 import os
 import glob
 
-from maopy.gossip_comm import GossipComm
+from maopy.gossip.gossip_comm import GossipComm
 
 
 def get_args():
@@ -48,8 +48,13 @@ def get_args():
         default=1,
         help='random seed (default: 1)')
     parser.add_argument(
-        '--num-steps',
-        type=int,
+        '--max-time-sec',
+        type=float,
+        default=3000.,
+        help='max amount of time to run algorithm for (default: 3000 sec)')
+    parser.add_argument(
+        '--max-itr',
+        type=float,
         default=1000,
         help='number of optimization steps (default: 1000)')
     parser.add_argument(
@@ -72,7 +77,7 @@ def get_args():
     assert args.alg in ['gp', 'pd', 'ep', 'asy-sonata']
 
     # Only these two objectives functions currently defined in utils
-    assert ('least_squares' in args.experiment) \
+    assert ('least-squares' in args.experiment) \
         or ('softmax' in args.experiment)
 
     # Message passing and network variables

@@ -33,8 +33,8 @@ class PushSumAverager(object):
     def __init__(self, peers=[(UID+1) % SIZE], in_degree=SIZE):
         """ Initialize the distributed averaging settings """
 
-        # Break on all numpy warnings
-        np.seterr(all='raise')
+        # # Break on all numpy warnings
+        # np.seterr(all='raise')
 
         self.peers = peers
         self.out_degree = len(self.peers)
@@ -54,7 +54,7 @@ class PushSumAverager(object):
         column['out_p'] = out_p
         return column
 
-    def push_messages_to_peers(self, peers, ps_w, ps_n):
+    def push_messages_to_peers(self, peers, consensus_column, ps_w, ps_n):
         """
         Send scaled push sum numerator and push sum weights to peers.
 
@@ -64,7 +64,7 @@ class PushSumAverager(object):
         :type ps_n: float
         :rtype: void
         """
-        for i, peer_uid in enumerate(peers):
+        for cc_w, peer_uid in zip(consensus_column, peers):
 
             # -- check if last message to peer was sent
             done_indices = []
@@ -76,8 +76,7 @@ class PushSumAverager(object):
                     del self.out_reqs[peer_uid][index]
 
             # -- send message to peer
-            push_message = np.append(ps_n / (self.out_degree + 1.),
-                                     ps_w / (self.out_degree + 1.))
+            push_message = np.append(ps_n * cc_w, ps_w * cc_w)
             req = COMM.Ibsend(push_message, dest=peer_uid, tag=1352)
             self.out_reqs[peer_uid].append(req)
 
@@ -114,8 +113,8 @@ class PushSumAverager(object):
                      'ps_n': np.array[float] or float)
         """
 
+        ps_n = np.zeros(gossip_value.size, dtype=np.float64)
         ps_w = 0
-        ps_n = 0
         num_rcvd = 0
         for _ in range(self.in_degree):
 
@@ -124,7 +123,8 @@ class PushSumAverager(object):
             # -- timeout to avoid deadlocks
             start_time = time.time()
             break_flag = False
-            while not COMM.Iprobe(source=MPI.ANY_SOURCE, status=info, tag=1352):
+            while not COMM.Iprobe(source=MPI.ANY_SOURCE, status=info,
+                                  tag=1352):
                 if time.time() > start_time + 10:
                     break_flag = True
                     break
@@ -162,9 +162,12 @@ class PushSumAverager(object):
 
         # -- push-messages to peers
         if not just_probe:
-            self.push_messages_to_peers(self.peers, ps_w, ps_n)
-            ps_n *= 1. / (self.out_degree + 1)
-            ps_w *= 1. / (self.out_degree + 1)
+            column = self.make_stochastic_weight_column()
+            out_p = column['out_p']  # outgoing mixing weights (vector)
+            lo_p = column['lo_p']  # loop-back mixing weight (scalar)
+            self.push_messages_to_peers(self.peers, out_p, ps_w, ps_n)
+            ps_n *= lo_p
+            ps_w *= lo_p
 
         if asynch:
             rcvd = self.recieve_asynchronously(ps_n)

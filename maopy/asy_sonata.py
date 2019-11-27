@@ -118,7 +118,10 @@ class AsySONATA(object):
             itr += 1
 
             # -- local descent step
-            argmin_est -= self.step_size * ps_grad_n_k
+            try:
+                argmin_est -= self.step_size * ps_grad_n_k
+            except Exception as e:
+                print('%s: %s' % (UID, e))
 
             # -- pull (row-stochastic) gossip argmin-est
             argmin_est = self.plga.gossip(gossip_value=argmin_est)
@@ -195,7 +198,7 @@ if __name__ == "__main__":
                               arg_start=x_start,
                               peers=[(UID + 1) % SIZE, (UID + 2) % SIZE],
                               step_size=1e-5,
-                              max_time_sec=5.,
+                              max_time_sec=10.,
                               in_degree=2)
 
         loggers = asysonata.minimize()

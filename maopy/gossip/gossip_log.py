@@ -23,7 +23,7 @@ class GossipLog(object):
     :param log_freq: The iteration-freqeuncy for saving "logged" variables
     """
 
-    def __init__(self, log_freq=100):
+    def __init__(self, log_freq=10):
         self.history = {}
         self.start_time = time.time()
         self.end_time = None

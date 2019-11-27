@@ -1,5 +1,6 @@
 """
-Robust Push Gossip Averaging class for parallel averaging using column stochastic mixing
+Robust Push Gossip Averaging class for parallel averaging using column
+stochastic mixing
 
 :author: Mido Assran
 :description: Distributed push-based gossip using column stochastic mixing.
@@ -30,8 +31,8 @@ class RobustPushAverager(object):
     def __init__(self, peers=None):
         """ Initialize the distributed averaging settings """
 
-        # Break on all numpy warnings
-        np.seterr(all='raise')
+        # # Break on all numpy warnings
+        # np.seterr(all='raise')
 
         # Set peers to all if not told who peers are
         if not peers:
@@ -62,7 +63,7 @@ class RobustPushAverager(object):
         :type ps_n: float
         :rtype: void
         """
-        for i, peer_uid in enumerate(peers):
+        for cc_w, peer_uid in zip(consensus_column, peers):
 
             # -- check if last message to peer was sent
             done_indices = []
@@ -74,7 +75,7 @@ class RobustPushAverager(object):
                     del self.out_reqs[peer_uid][index]
 
             # -- send message to peer
-            push_message = consensus_column[i]*ps_n
+            push_message = cc_w * ps_n
             if peer_uid not in self.out_buffer:
                 self.out_buffer[peer_uid] = push_message
             else:
@@ -125,7 +126,6 @@ class RobustPushAverager(object):
 
         gossip_value = np.array(gossip_value, dtype=np.float64)
 
-        # Initialize push gossip
         column = self.make_stochastic_weight_column()
         out_p = column['out_p']  # vector
         lo_p = column['lo_p']  # scalar

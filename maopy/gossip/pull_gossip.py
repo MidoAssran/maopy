@@ -32,8 +32,8 @@ class PullGossipAverager(object):
     def __init__(self, peers=[(UID+1) % SIZE]):
         """ Initialize the distributed averaging settings """
 
-        # Break on all numpy warnings
-        np.seterr(all='raise')
+        # # Break on all numpy warnings
+        # np.seterr(all='raise')
 
         self.peers = peers
 

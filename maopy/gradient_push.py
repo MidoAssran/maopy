@@ -143,7 +143,7 @@ class GradientPush(object):
             ps_n -= self.step_size * self.sub_gradient(argmin_est)
 
             # -- push-sum gossip
-            just_probe = ps_w < 1e-10  # -- prevent numerical instability
+            just_probe = ps_w < 1e-5  # -- prevent numerical instability
             ps_result = self.psga.gossip(ps_n, ps_w, just_probe, self.asynch)
             ps_n = ps_result['ps_n']
             ps_w = ps_result['ps_w']
@@ -189,24 +189,25 @@ class GradientPush(object):
                 l_ps_w.log(ps_w, itr)
 
         COMM.Barrier()
-        # Fetch any lingering message
-        print('%s: Fetching lingering msgs...' % (UID))
-        timeout = time.time()
-        ps_result = self.psga.gossip(ps_n, ps_w,
-                                     just_probe=True,
-                                     asynch=False)
-        argmin_est = ps_result['avg']
-        ps_n = ps_result['ps_n']
-        ps_w = ps_result['ps_w']
-        num_rcvd += ps_result['num_rcvd']
-        print('%s: rcvd/sent(%s/%s) %s' % (UID, num_rcvd, num_sent, ps_w))
-        barrier_time = time.time() - timeout
-        # -- log updated variables
-        if self.log:
-            itr += 1
-            l_argmin_est.log(argmin_est, itr,
-                             time_offset=(-barrier_time),
-                             force=True)
+        if self.asynch:
+            # Fetch any lingering message
+            print('%s: Fetching lingering msgs...' % (UID))
+            timeout = time.time()
+            ps_result = self.psga.gossip(ps_n, ps_w,
+                                         just_probe=True,
+                                         asynch=False)
+            argmin_est = ps_result['avg']
+            ps_n = ps_result['ps_n']
+            ps_w = ps_result['ps_w']
+            num_rcvd += ps_result['num_rcvd']
+            print('%s: rcvd/sent(%s/%s) %s' % (UID, num_rcvd, num_sent, ps_w))
+            barrier_time = time.time() - timeout
+            # -- log updated variables
+            if self.log:
+                itr += 1
+                l_argmin_est.log(argmin_est, itr,
+                                 time_offset=(-barrier_time),
+                                 force=True)
 
         self.argmin_est = argmin_est
 

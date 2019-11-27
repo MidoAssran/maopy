@@ -7,9 +7,9 @@ import numpy as np
 
 from arguments import get_args
 
-from maopy.push_sum_gossip_diging import PushDIGing
-from maopy.push_sum_gossip_gradient_descent import PushSumSubgradientDescent
-from maopy.push_sum_gossip_extra import ExtraPush
+from maopy.push_diging import PushDIGing
+from maopy.gradient_push import GradientPush
+from maopy.extra_push import ExtraPush
 from maopy.asy_sonata import AsySONATA
 from utils.distributed import Printer
 from utils.distributed import load_peers
@@ -45,41 +45,39 @@ def main(args):
             args.data_file_name, args.rank, args.size, printer=printer)
 
     # Initialize multi-agent optimizer
-    if args.alg == 'asy-sonata':
-        optimizer = AsySONATA(objective=objective,
-                              sub_gradient=gradient,
-                              arg_start=arg_start,
-                              peers=peers,
-                              step_size=args.lr,
-                              termination_condition=args.num_steps,
-                              in_degree=2,
-                              log=True)
-        loggers = optimizer.minimize()
-        l_argmin_est = loggers['argmin_est']
-        np.savez_compressed(args.fpath,
-                            argmin_est=l_argmin_est)
-    else:
+    if args.alg != 'asy-sonata':
         if args.alg == 'gp':
-            OptimizerClass = PushSumSubgradientDescent
+            optimizer = GradientPush(objective=objective,
+                                     sub_gradient=gradient,
+                                     arg_start=arg_start,
+                                     asynch=args.asynch,
+                                     peers=peers,
+                                     step_size=args.lr,
+                                     max_itr=args.max_itr,
+                                     max_time_sec=args.max_time_sec,
+                                     in_degree=in_degree,
+                                     tau_proc=args.tau,
+                                     log=True)
         elif args.alg == 'pd':
-            OptimizerClass = PushDIGing
+            optimizer = PushDIGing(objective=objective,
+                                   sub_gradient=gradient,
+                                   arg_start=arg_start,
+                                   peers=peers,
+                                   step_size=args.lr,
+                                   max_itr=args.max_itr,
+                                   in_degree=in_degree,
+                                   log=True)
         elif args.alg == 'ep':
-            OptimizerClass = ExtraPush
-        optimizer = OptimizerClass(
-            objective=objective,
-            sub_gradient=gradient,
-            arg_start=arg_start,
-            synch=(not args.asynch),
-            peers=peers,
-            step_size=args.lr,
-            terminate_by_time=args.asynch,
-            termination_condition=args.num_steps,
-            log=True,
-            out_degree=out_degree,
-            in_degree=in_degree,
-            all_reduce=False)
+            optimizer = ExtraPush(objective=objective,
+                                  sub_gradient=gradient,
+                                  arg_start=arg_start,
+                                  peers=peers,
+                                  step_size=args.lr,
+                                  max_itr=args.max_itr,
+                                  in_degree=in_degree,
+                                  log=True)
 
-        # Log and save results
+        # -- log and save results
         loggers = optimizer.minimize()
         l_argmin_est = loggers['argmin_est'].history
         l_ps_w = loggers['ps_w'].history
@@ -87,16 +85,19 @@ def main(args):
         np.savez_compressed(args.fpath,
                             argmin_est=l_argmin_est,
                             ps_w=l_ps_w)
-
-    # # Load global objective
-    # objective, _, _, arg_min = load_least_squares(args.data_file_name, 0, 1)
-    # true_obj = objective(arg_min)
-    # start_obj = objective(arg_start)
-    # final_obj = objective(loggers['argmin_est'].gossip_value)
-    # printer.stdout(
-    #     '(truth: %.4E)(final: %.4E)(start: %.4E)' % (
-    #         true_obj, final_obj, start_obj)
-    # )
+    else:
+        optimizer = AsySONATA(objective=objective,
+                              sub_gradient=gradient,
+                              arg_start=arg_start,
+                              peers=peers,
+                              step_size=args.lr,
+                              max_time_sec=args.max_time_sec,
+                              in_degree=in_degree,
+                              log=True)
+        loggers = optimizer.minimize()
+        l_argmin_est = loggers['argmin_est'].history
+        np.savez_compressed(args.fpath,
+                            argmin_est=l_argmin_est)
 
     printer.stdout('fin.')
 
