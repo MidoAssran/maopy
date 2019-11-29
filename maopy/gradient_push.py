@@ -108,7 +108,6 @@ class GradientPush(object):
         argmin_est = ps_n / ps_w
 
         itr = 0
-        start_time = time.time()
         # -- used for cleaning up MPI
         num_rcvd, num_sent = 0, 0
         # -- keep track of message staleness
@@ -117,6 +116,11 @@ class GradientPush(object):
         tau = 0
         barrier_req = COMM.Ibarrier()
 
+        # -- start optimization at the same time
+        COMM.Barrier()
+        print('%s: starting optimization...' % UID)
+        np.random.seed(UID)
+        start_time = time.time()
         if self.log:
             # -- log the argmin estimate
             l_argmin_est = GossipLog()
@@ -125,15 +129,10 @@ class GradientPush(object):
             l_ps_w = GossipLog()
             l_ps_w.log(ps_w, itr)
 
-        # -- start optimization at the same time
-        COMM.Barrier()
-        print('%s: starting optimization...' % UID)
-        np.random.seed(UID)
-
         # Optimization loop
         while not self.the_terminator(itr, time.time()-start_time):
 
-            if not self.asynch:
+            if not self.asynch or itr < 5:
                 COMM.Barrier()
 
             # Update iteration
@@ -143,12 +142,13 @@ class GradientPush(object):
             ps_n -= self.step_size * self.sub_gradient(argmin_est)
 
             # -- push-sum gossip
-            just_probe = ps_w < 1e-5  # -- prevent numerical instability
+            just_probe = ps_w < 1e-5
             ps_result = self.psga.gossip(ps_n, ps_w, just_probe, self.asynch)
+            argmin_est = ps_result['avg']
             ps_n = ps_result['ps_n']
             ps_w = ps_result['ps_w']
             num_rcvd += ps_result['num_rcvd']
-            if not just_probe:
+            if not ps_result['just_probed']:
                 num_sent += len(self.peers)
 
             # -- keep track of (and bound) message staleness
@@ -158,14 +158,13 @@ class GradientPush(object):
                 ps_result = self.psga.gossip(ps_n, ps_w,
                                              just_probe=True,
                                              asynch=False)
-            argmin_est = ps_result['avg']
-            ps_n = ps_result['ps_n']
-            ps_w = ps_result['ps_w']
-            num_rcvd += ps_result['num_rcvd']
+                argmin_est = ps_result['avg']
+                ps_n = ps_result['ps_n']
+                ps_w = ps_result['ps_w']
+                num_rcvd += ps_result['num_rcvd']
 
             # -- record-keeping to clean up MPI at the end
-            print('%s: jp(%s) %s' % (UID, just_probe, ps_w))
-            print('%s: rcvd/sent(%s/%s) %s' % (UID, num_rcvd, num_sent, ps_w))
+            print('%s: pw(%s)' % (UID, ps_w))
 
             # -- keep track of (and bound) relative processing delays
             if barrier_req.test()[0]:
@@ -200,7 +199,7 @@ class GradientPush(object):
             ps_n = ps_result['ps_n']
             ps_w = ps_result['ps_w']
             num_rcvd += ps_result['num_rcvd']
-            print('%s: rcvd/sent(%s/%s) %s' % (UID, num_rcvd, num_sent, ps_w))
+
             barrier_time = time.time() - timeout
             # -- log updated variables
             if self.log:
@@ -210,6 +209,8 @@ class GradientPush(object):
                                  force=True)
 
         self.argmin_est = argmin_est
+
+        print('%s: rcvd/sent(%s/%s) %s' % (UID, num_rcvd, num_sent, ps_w))
 
         if self.log:
             return {'argmin_est': l_argmin_est,

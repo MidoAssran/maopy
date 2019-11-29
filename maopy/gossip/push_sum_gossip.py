@@ -64,17 +64,8 @@ class PushSumAverager(object):
         :type ps_n: float
         :rtype: void
         """
+        print('%s: sending message to peers' % UID)
         for cc_w, peer_uid in zip(consensus_column, peers):
-
-            # -- check if last message to peer was sent
-            done_indices = []
-            for i, req in enumerate(self.out_reqs[peer_uid]):
-                if not req.test()[0]:
-                    continue
-                done_indices.append(i)
-            for index in sorted(done_indices, reverse=True):
-                    del self.out_reqs[peer_uid][index]
-
             # -- send message to peer
             push_message = np.append(ps_n * cc_w, ps_w * cc_w)
             req = COMM.Ibsend(push_message, dest=peer_uid, tag=1352)
@@ -95,6 +86,7 @@ class PushSumAverager(object):
         num_rcvd = 0
         while COMM.Iprobe(source=MPI.ANY_SOURCE, status=info, tag=1352):
             self.info_list.append(info)
+            print('%s: receiving message from %s' % (UID, info.source))
             data = np.empty(gossip_value.size + 1, dtype=np.float64)
             COMM.Recv(data, info.source)
             ps_n += data[:-1]
@@ -117,9 +109,7 @@ class PushSumAverager(object):
         ps_w = 0
         num_rcvd = 0
         for _ in range(self.in_degree):
-
             info = MPI.Status()
-
             # -- timeout to avoid deadlocks
             start_time = time.time()
             break_flag = False
@@ -130,8 +120,8 @@ class PushSumAverager(object):
                     break
             if break_flag:
                 break
-
             # -- receive message
+            print('%s: receiving message from %s' % (UID, info.source))
             data = np.empty(gossip_value.size + 1, dtype=np.float64)
             COMM.Recv(data, info.source, tag=1352)
             num_rcvd += 1
@@ -155,10 +145,22 @@ class PushSumAverager(object):
                                   'rcvd_flag': Boolean)
         """
 
-        # Initialize push sum gossip
+        # -- initialize push sum gossip
         ps_n = np.array(ps_numerator, dtype=np.float64)  # push sum numerator
         ps_w = np.array(ps_weight, dtype=np.float64)  # push sum weight
         avg = ps_n / ps_w  # push sum estimate
+
+        # -- check if last messages to peers were sent
+        for peer_uid in self.peers:
+            done_indices = []
+            for i, req in enumerate(self.out_reqs[peer_uid]):
+                if not req.test()[0]:
+                    # -- not done sending msgs, just-probe if asynch
+                    just_probe = asynch
+                    continue
+                done_indices.append(i)
+            for index in sorted(done_indices, reverse=True):
+                    del self.out_reqs[peer_uid][index]
 
         # -- push-messages to peers
         if not just_probe:
@@ -168,6 +170,8 @@ class PushSumAverager(object):
             self.push_messages_to_peers(self.peers, out_p, ps_w, ps_n)
             ps_n *= lo_p
             ps_w *= lo_p
+        else:
+            print('%s: just probing' % UID)
 
         if asynch:
             rcvd = self.recieve_asynchronously(ps_n)
@@ -175,12 +179,15 @@ class PushSumAverager(object):
             rcvd = self.receive_synchronously(ps_n)
         ps_n += rcvd['ps_n'].reshape(ps_n.shape)
         ps_w += rcvd['ps_w']
+        num_rcvd = rcvd['num_rcvd']
         avg = ps_n / ps_w
+        print('%s: received %s messages' % (UID, num_rcvd))
 
         return {'avg': avg,
                 'ps_w': ps_w,
                 'ps_n': ps_n,
-                'num_rcvd': rcvd['num_rcvd']}
+                'num_rcvd': num_rcvd,
+                'just_probed': just_probe}
 
 
 if __name__ == "__main__":

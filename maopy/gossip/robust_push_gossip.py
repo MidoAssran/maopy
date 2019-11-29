@@ -28,17 +28,13 @@ class RobustPushAverager(object):
     :param peers: UniqueIDs of neighbouring peers in network (used for comm.)
     """
 
-    def __init__(self, peers=None):
+    def __init__(self, peers=[(UID+1) % SIZE]):
         """ Initialize the distributed averaging settings """
 
         # # Break on all numpy warnings
         # np.seterr(all='raise')
 
-        # Set peers to all if not told who peers are
-        if not peers:
-            peers = [i for i in range(SIZE) if i != UID]
         self.peers = peers
-
         self.out_degree = len(self.peers)
         self.info_list = []
         self.out_buffer = {}

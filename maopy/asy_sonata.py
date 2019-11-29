@@ -1,6 +1,5 @@
 """
 ASY-SONATA class for parallel optimization using row-/column-stochastic mixing.
-
 :author: Mido Assran
 :description: Distributed optimization using row- and column-stochastic mixing
               and gradient tracking. Based on the paper (tian2019Achieving)
@@ -96,20 +95,18 @@ class AsySONATA(object):
         ps_grad_n_k = self.sub_gradient(argmin_est)
         grad_km1 = ps_grad_n_k
 
+        # Start optimization at the same time
+        COMM.Barrier()
+        print('%s: starting optimization...' % UID)
+        np.random.seed(UID)
+        start_time = time.time()
         # Setup loop parameters
         itr = 0
-
         if self.log:
             # -- log the argmin estimate
             l_argmin_est = GossipLog()
             l_argmin_est.log(argmin_est, itr)
 
-        start_time = time.time()
-
-        # Start optimization at the same time
-        COMM.Barrier()
-        print('%s: starting optimization...' % UID)
-        np.random.seed(UID)
 
         # Optimization loop
         while not self.the_terminator(time.time()-start_time):

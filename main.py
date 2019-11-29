@@ -57,6 +57,7 @@ def main(args):
                                      max_time_sec=args.max_time_sec,
                                      in_degree=in_degree,
                                      tau_proc=args.tau,
+                                     tau_msg=args.tau,
                                      log=True)
         elif args.alg == 'pd':
             optimizer = PushDIGing(objective=objective,
@@ -98,6 +99,17 @@ def main(args):
         l_argmin_est = loggers['argmin_est'].history
         np.savez_compressed(args.fpath,
                             argmin_est=l_argmin_est)
+
+    if 'softmax' in args.experiment:
+        np.random.seed(args.seed)
+        # Load global objective
+        objective, _, arg_start = load_softmax(args.data_file_name, 0, 1)
+        start_obj = objective(arg_start)
+        final_obj = objective(loggers['argmin_est'].gossip_value)
+        printer.stdout(
+            '(final: %.4E)(start: %.4E)' % (
+                final_obj, start_obj)
+        )
 
     printer.stdout('fin.')
 

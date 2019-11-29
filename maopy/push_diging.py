@@ -6,6 +6,8 @@ Push-DIGing for distributed optimization using column-stochastic mixing
               gradient tracking. Based on the paper (nedich2016Achieving)
 """
 
+import time
+
 import numpy as np
 
 from .gossip.gossip_comm import GossipComm

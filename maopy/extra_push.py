@@ -6,6 +6,8 @@ EXTRAPush for distributed optimization using column stochastic mixing
               static gradient tracking. Based on the paper (zeng2015extra)
 """
 
+import time
+
 import numpy as np
 
 from .gossip.gossip_comm import GossipComm
@@ -160,8 +162,8 @@ class ExtraPush(object):
                     "ps_w": l_ps_w}
         else:
             return {"argmin_est": argmin_est,
-                    "objective": objective(argmin_est),
-                    "sub_gradient": gradient(argmin_est)}
+                    "objective": self.objective(argmin_est),
+                    "sub_gradient": self.sub_gradient(argmin_est)}
 
 
 if __name__ == "__main__":
